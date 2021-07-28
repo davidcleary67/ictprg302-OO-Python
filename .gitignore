@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # Local ignores
-backup/
-test/
+backup/*
+test/*
