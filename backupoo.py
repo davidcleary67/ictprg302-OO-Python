@@ -5,10 +5,11 @@ import sys, os, pathlib, shutil, smtplib
 from datetime import datetime
 # from backupcfg import jobs, logfile, usage_msg, job_msg, recipient, email_user, email_pwd, server, port
 
-class EmailConfig:
-'''
-Individual Email configuration details.
-'''
+class EmailConfig(object):
+    '''
+    Individual Email configuration details.
+    '''
+
     def __init__(self, *args):
         '''
         class EmailConfig constructor
@@ -30,6 +31,9 @@ Individual Email configuration details.
         self.port = args[4] 
 
 class Job(object):
+    '''
+    Individual job details.
+    '''
 
     def __init__(self, *args):
         '''
@@ -47,6 +51,23 @@ class Job(object):
         self.src = args[1]
         self.dst = args[2]
 
+        self.errors = 0
+        self.message = []
+        self.datestring = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        # Determine type of backup job
+        self.is_file_job = pathlib.Path(self.src).is_file()
+        self.is_dir_job = pathlib.Path(self.src).is_dir()
+
+        # Check job source and destination paths exist
+        if not os.path.exists(self.src):
+            self.message.append("Source " + self.src + " does not exist -> FAIL")
+            self.errors += 1
+
+        if not os.path.exists(self.dst):
+            self.message.append("Destination directory " + self.dst + " does not exist -> FAIL")
+            self.errors += 1
+
     def __eq__(self, other):
         '''
         Return:
@@ -55,7 +76,40 @@ class Job(object):
 
         return other == self.name
 
-class Backup:
+    def do_logfile(self, logfile):
+        '''
+        Output all log messages to logfile.
+        '''
+
+        file = open(logfile, "a")
+        for msg in self.message:
+            logmsg = self.datestring + " " + self.name + " " + msg
+            file.write(logmsg + "\n")
+        file.close()
+
+    def do_email(self, email_config):
+        '''
+        Output all log message as email.
+        '''
+        
+        header = 'To: ' + email_config.recipient + '\n' + 'From: ' + email_config.user + '\n' + 'Subject: Backup Error ' + self.name + '\n'
+        msg = header + '\n'
+        
+        for item in self.message:
+            msg = msg + item + '\n'
+        msg = msg + '\n\n'
+
+        smtpserver = smtplib.SMTP(email_config.server, email_config.port)
+        smtpserver.ehlo()
+        smtpserver.starttls()
+        smtpserver.login(email_config.user, email_config.pwd)
+        smtpserver.sendmail(email_config.user, email_config.recipient, msg)
+        smtpserver.quit()
+
+class Backup(object):
+    '''
+    Backup a file system object.
+    '''
 
     def __init__(self, *args):
         '''
@@ -63,98 +117,89 @@ class Backup:
 
         Set class attributes to initial values.
 
-        Parameter count:
-            0: set attributes to defaults
-            3: set attributes to args[]
-
         Parameters:
             args[0]: formatted datetime string
             args[1]: number errors
             args[2]: messages
         '''
         
-        self.datestring = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.errors = 0
-        self.message = []
-        self.backed_up = False
+        self.job = args[0]
+        self.logfile = args[1]
+        self.email_config = args[2]
 
-        if len(args) == 0:
-            self.job = 0
-            self.logfile = "./backup.log"
-            self.email_config = None
+class BackupFile(Backup):
+    '''
+    Backup a file system file.
+    '''
 
-        elif len(args) == 3:
-            self.job = args[0]
-            self.logfile = args[1]
-            self.email_config = args[2]
-
-    def do_logfile(self):
+    def do_backup(self):
         '''
-        Output all log messages to logfile.
+        Backup source file to destination.
         '''
 
-        file = open(self.logfile,"a")
-        for msg in self.message:
-            logmsg = self.datestring + " " + self.job + " " + msg
-            file.write(logmsg + "\n")
-        file.close()
-
-    def do_email(self):
-        '''
-        Output all log message as email.
-        '''
+        # Local variables to shorten code
+        src = self.job.src
+        dst = self.job.dst
         
-        header = 'To: ' + self.email_config.recipient + '\n' + 'From: ' + self.email_config.user + '\n' + 'Subject: Backup Error ' + self.job + '\n'
-        msg = header + '\n'
+        # Construct source and destination paths
+        src_path = pathlib.Path(src)
+        src_path_only = pathlib.PurePath(src)
+        dst_path = dst + "/" + src_path_only.name + "-" + self.job.datestring
+
+        # Copy source file to destination
+        try:
+            shutil.copy2(src, dst_path)
+            self.job.message.append("Backup of file " + src + " -> SUCCEED")
+        except:
+            self.job.message.append("Backup of file " + src + " -> FAIL")
+            self.job.errors += 1
+
+class BackupDirectory(Backup):
+    '''
+    Backup a file system .
+    '''
+
+    def do_backup(self):
+        '''
+        Backup source directory to destination.
+        '''
+
+        # Local variables to shorten code
+        src = self.job.src
+        dst = self.job.dst
         
-        for item in message:
-            msg = msg + item + '\n'
-        msg = msg + '\n\n'
+        # Construct source and destination paths
+        src_path = pathlib.Path(src)
+        src_path_only = pathlib.PurePath(src)
+        dst_path = dst + "/" + src_path_only.name + "-" + self.job.datestring
 
-        smtpserver = smtplib.SMTP(self.email_config.server, self.email_config.port)
-        smtpserver.ehlo()
-        smtpserver.starttls()
-        smtpserver.login(self.email_config.user, self.email_config.pwd)
-        smtpserver.sendmail(self.email_config.user, self.email_config.recipient, msg)
-        smtpserver.quit()
-        
-email_config = EmailConfig('mhall@sunitafe.edu.au',
-                           'mhall@sunitafe.edu.au',
-                           'xxxxxxxx',
-                           'mail.example.com',
-                           587)
+        # Copy source directory to destination
+        try:
+            shutil.copytree(src, dst_path)
+            self.job.message.append("Backup of directory " + src + " -> SUCCEED")
+        except:
+            self.job.message.append("Backup of directory " + src + " -> FAIL")
+            self.job.errors += 1
 
-jobs = [Job('job1', '/home/ec2-user/environment/ictnwk409-class/data/dir1', '/home/ec2-user/environment/ictnwk409-class/data/dir2'),
-        Job('job2', '/home/ec2-user/environment/ictnwk409-class/data/file1','/home/ec2-user/environment/ictnwk409-class/data/dir2'),
-        Job('job3', '/home/ec2-user/environment/backup/dir5','/home/ec2-user/environment/backup/dir6')]
-
-usage_msg = 'Usage: python backup.py <job_name>'
-
-logfile = '/home/ec2-user/environment/ictnwk409-class/backup.log'
-
-'''
-b = Backup(34, "./NewLog.log", email_config);
-c = Backup();
-
-print(b.datestring)
-print(b.job)
-print(b.logfile)
-print(b.email_config.recipient)
-print(c.datestring)
-print(c.job)
-print(c.logfile)
-print(jobs[0].name)
-print('job6' in jobs)
-print(jobs.index('job3'))
-'''
-
-backup = Backup(jobs[jobs.index('job2')], logfile, email_config)
-print(backup.job.name)
-print(backup.job.src)
-print(backup.job.dst)
-
-
+#  main routine
 if __name__ == '__main__':
+
+    email_config = EmailConfig('dcleary@sunitafe.edu.au',
+                               'dcleary@sunitafe.edu.au',
+                               'xxxxxxxx',
+                               'mail.example.com',
+                               587)
+
+    jobs = [Job('job1', '/home/ec2-user/environment/backupoo/test/dir1', '/home/ec2-user/environment/backupoo/backup'),
+            Job('job2', '/home/ec2-user/environment/backupoo/test/file1','/home/ec2-user/environment/backupoo/backup'),
+            Job('job3', '/home/ec2-user/environment/backupoo/test/fileX','/home/ec2-user/environment/backupoo/backup'),
+            Job('job4', '/home/ec2-user/environment/backupoo/test/file1','/home/ec2-user/environment/backupoo/backupX')]
+
+    usage_msg = 'Usage: python backup.py <job_name>'
+    
+    job_msg = 'Invalid job number.  Job number not in list of jobs.'
+    
+    logfile = '/home/ec2-user/environment/backupoo/backupoo.log'
 
     if len(sys.argv) != 2:
 
@@ -164,21 +209,28 @@ if __name__ == '__main__':
 
         job_name = sys.argv[1]
 
-        # check if a job named job_name is in the list of jobs
+        # if valid job then backup job
         if job_name not in jobs:
 
             print(job_msg)
 
         else:
-            
-            backup = Backup(jobs.index(job_name), logfile, email_config)
 
-            print(backup.job.name)
-            
-            #backup.do_backup()
+            job = jobs[jobs.index(job_name)]
 
-            if backup.errors != 0:
+            if job.is_file_job:
+            
+                backup = BackupFile(job, logfile, email_config)
+
+            elif job.is_dir_job:
+
+                backup = BackupDirectory(job, logfile, email_config)
+
+            if not job.errors:
+                backup.do_backup()
+
+            if job.errors:
                 pass
-                # backup.do_email()
+            # job.do_email(email_config)
 
-            # backup.do_logfile(job)
+            job.do_logfile(logfile)
