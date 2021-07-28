@@ -6,7 +6,9 @@ from datetime import datetime
 # from backupcfg import jobs, logfile, usage_msg, job_msg, recipient, email_user, email_pwd, server, port
 
 class EmailConfig:
-
+'''
+Individual Email configuration details.
+'''
     def __init__(self, *args):
         '''
         class EmailConfig constructor
