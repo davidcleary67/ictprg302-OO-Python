@@ -10,7 +10,7 @@ def main():
     '''
     Execute backup job from job list with a name matching the first command line argument.
     '''
-    # Constants
+    # constants
     usage_msg = 'Usage: python backup.py <job_name>'
     
     job_msg = 'Invalid job number.  Job number not in list of jobs.'
@@ -48,15 +48,8 @@ def main():
 
             job = jobs[jobs.index(job_name)]
 
-
-            # determine the job type
-            if job.is_file_job:
-
-                backup = BackupFile()
-
-            elif job.is_dir_job:
-
-                backup = BackupDirectory()
+            # determine the type of backup to perform based upon job type
+            backup = BackupFile() if job.is_file_job else BackupDirectory() 
 
             # perform backup
             if not job.errors:
