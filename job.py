@@ -1,4 +1,10 @@
-!#/usr/bin/python3
+#!/usr/bin/python3
+
+# import modules
+import pathlib
+import smtplib
+import os
+from datetime import datetime
 
 class Job(object):
     '''
@@ -82,9 +88,14 @@ class Job(object):
         '''
 
         # Construct source and destination paths
-        src_path = pathlib.Path(self.src)
+        #src_path = pathlib.Path(self.src)
         src_path_only = pathlib.PurePath(self.src)
-        self.dst_path = self.dst + "/" + src_path_only.name + "-" + self.datestring
+        dst_path = self.dst + "/" + src_path_only.name + "-" + self.datestring
 
         # Copy file system object to destination
-        backup.do_backup(self)
+        try:
+            backup.do_backup(self.src, dst_path)
+            self.message.append(backup.prompt + self.src + " -> SUCCEED")
+        except:
+            self.message.append(backup.prompt + self.src + " -> FAIL")
+            self.errors += 1
