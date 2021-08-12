@@ -88,9 +88,8 @@ class Job(object):
         '''
 
         # Construct source and destination paths
-        #src_path = pathlib.Path(self.src)
-        src_path_only = pathlib.PurePath(self.src)
-        dst_path = self.dst + "/" + src_path_only.name + "-" + self.datestring
+        src_path = pathlib.PurePath(self.src)
+        dst_path = self.dst + "/" + src_path.name + "-" + self.datestring
 
         # Copy file system object to destination
         try:
