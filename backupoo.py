@@ -8,6 +8,10 @@ from job import Job
 from backup import Backup, BackupFile, BackupDirectory
 from backupcfg import job_msg, usage_msg, logfile, email_config, jobs
 
+# constants
+usageMsg = 'Usage: python backup.py <job_name>'
+jobMsg = 'Invalid job name.  Job name not in list of jobs.'
+
 def main():
     '''
     Execute backup job from job list with a name matching the first command line argument.
@@ -16,7 +20,7 @@ def main():
     # check for correct number of command line arguments
     if len(sys.argv) != 2:
 
-        print(usage_msg)
+        print(usageMsg)
 
     else:
 
@@ -25,7 +29,7 @@ def main():
 
         if job_name not in jobs:
 
-            print(job_msg)
+            print(jobMsg)
 
         else:
 
